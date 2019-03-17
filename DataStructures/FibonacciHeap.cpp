@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <memory>
 #include <list>
-#include <unordered_map>
 
 // For testing
 #include <cstdlib>
@@ -62,7 +61,7 @@ public:
         // Promote node's children
         for (auto& child : m_rootList.front()->children)
         {
-            // save (and more efficient) to be moved
+            // safe (and more efficient) to be moved
             m_rootList.push_back(std::move(child));
         }
         // Pop Min
@@ -77,15 +76,13 @@ public:
         return m_rootList.empty();
     }
 
-    void DecreaseKey(const node_ref& ref, key_type key)
+    void UpdateKey(const node_ref& ref, key_type key)
     {
         auto node = ref.lock();
         if (!node || Comp()(node->key, key))
         {
-            // DecreaseKey may not be a good name for this method.
-            // This FibonacciHeap supports std::greater sorting, and in this case,
-            // this method should be called IncreaseKey.
-            // These errors are probably best to ignore.
+            // Potentially dangerous, since "UpdateKey" infers that the key can be increase or decreased.
+            // In reality, decrease is supported for a min heap, while increase is supported for a max heap.
             return;
         }
 
@@ -156,7 +153,7 @@ private:
 
     void Consolidate()
     {
-        std::unordered_map<size_t, std::shared_ptr<Node>> buckets;
+        std::vector<std::shared_ptr<Node>> buckets(8);
 
         // Merge all root nodes with an equal amount of children
         while (!m_rootList.empty())
@@ -167,6 +164,11 @@ private:
             while (true)
             {
                 size_t degree = rootNode->children.size();
+                if (degree >= buckets.size())
+                {
+                    buckets.resize(degree + 1);
+                }
+
                 auto& bucketNode = buckets[degree];
                 if (!bucketNode)
                 {
@@ -190,7 +192,6 @@ private:
                     }
                     // Remove the node from the bucket entirely
                     bucketNode.reset();
-                    buckets.erase(degree);
                 }
             }
         }
@@ -198,8 +199,11 @@ private:
         // Dump buckets back into root node list and update front value
         for (const auto& item : buckets)
         {
-            auto it = m_rootList.insert(m_rootList.end(), item.second);
-            UpdateFront(it);
+            if (item)
+            {
+                auto it = m_rootList.insert(m_rootList.end(), item);
+                UpdateFront(it);
+            }
         }
     }
 
@@ -240,7 +244,7 @@ int main()
     {
         if (std::rand() % 3 == 0)
         {
-            heap.DecreaseKey(item, -300);
+            heap.UpdateKey(item, -300);
         }
     }
     for (int i = 0; i < 10; ++i)
@@ -253,7 +257,7 @@ int main()
     {
         if (std::rand() % 7 == 0)
         {
-            heap.DecreaseKey(item, -300);
+            heap.UpdateKey(item, -300);
         }
     }
 
